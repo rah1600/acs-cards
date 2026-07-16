@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Propeller Orals — ACS Flashcards</title>
+<style>
+:root{
+  --bg:#0e1116; --panel:#161b22; --panel-2:#1c232d; --edge:#2a333f;
+  --ink:#e8edf2; --ink-dim:#9aa7b4; --ink-faint:#5f6b78;
+  --amber:#f5a623; --amber-soft:#3a2e16;
+  --green:#39d98a; --green-soft:#163326;
+  --red:#ff6b6b; --red-soft:#3a1c1c;
+  --blue:#4aa3ff;
+  --mono:"SFMono-Regular",ui-monospace,"Cascadia Mono","Roboto Mono",Menlo,Consolas,monospace;
+  --sans:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --card-h:clamp(320px,52vh,520px);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:radial-gradient(1200px 600px at 50% -10%, #19212c 0%, transparent 60%), var(--bg);
+  color:var(--ink); font-family:var(--sans); -webkit-font-smoothing:antialiased; min-height:100vh;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+.wrap{max-width:760px;margin:0 auto;padding:22px 18px 40px}
+
+.placard{border:1px solid var(--edge);background:linear-gradient(180deg,var(--panel) 0%,#12171e 100%);
+  border-radius:14px;padding:16px 18px;position:relative;overflow:hidden}
+.placard:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:linear-gradient(180deg,var(--amber),#b9791a)}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--amber);margin:0 0 6px}
+.h-title{font-size:clamp(19px,3.6vw,26px);font-weight:700;letter-spacing:-.01em;margin:0;line-height:1.15}
+.h-sub{font-family:var(--mono);font-size:12px;color:var(--ink-dim);margin-top:8px;display:flex;gap:14px;flex-wrap:wrap}
+.h-sub b{color:var(--ink);font-weight:600}
+.chip{display:inline-flex;align-items:center;gap:6px}
+.dot{width:8px;height:8px;border-radius:2px;display:inline-block}
+.dot.k{background:var(--blue)} .dot.r{background:var(--amber)} .dot.s{background:var(--green)}
+
+/* Subject (section) picker */
+.pickrow{margin:16px 0 4px}
+.picklabel{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-faint);margin:0 0 8px}
+.subjects{display:flex;gap:7px;flex-wrap:wrap}
+.subj{font-family:var(--mono);font-size:12px;border:1px solid var(--edge);background:var(--panel);color:var(--ink-dim);
+  border-radius:9px;padding:8px 11px;cursor:pointer;display:flex;align-items:center;gap:7px;line-height:1}
+.subj:hover{border-color:#3a4654;color:var(--ink)}
+.subj[aria-pressed=true]{background:var(--amber);color:#1a1303;border-color:var(--amber)}
+.subj .l{font-weight:700}
+.subj .c{font-size:10px;opacity:.7}
+.subj.allbtn[aria-pressed=true]{background:var(--blue);border-color:var(--blue);color:#04121f}
+
+/* Controls row */
+.controls{display:flex;gap:8px;align-items:center;margin:16px 0 14px;flex-wrap:wrap}
+.seg{display:flex;border:1px solid var(--edge);border-radius:10px;overflow:hidden;background:var(--panel)}
+.seg button{background:transparent;border:0;color:var(--ink-dim);font-family:var(--mono);font-size:11px;
+  letter-spacing:.06em;text-transform:uppercase;padding:8px 11px;cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--panel-2);color:var(--ink)}
+.seg button+button{border-left:1px solid var(--edge)}
+.spacer{flex:1}
+.iconbtn{background:var(--panel);border:1px solid var(--edge);color:var(--ink-dim);border-radius:10px;
+  width:38px;height:38px;font-size:15px;cursor:pointer;display:grid;place-items:center}
+.iconbtn:hover{color:var(--ink);border-color:#3a4654}
+.iconbtn[aria-pressed=true]{color:var(--amber);border-color:var(--amber)}
+
+.progress{height:5px;background:var(--panel);border:1px solid var(--edge);border-radius:99px;overflow:hidden;margin-bottom:6px}
+.progress > i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--amber),#ffce6b);transition:width .25s ease}
+.meta{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;color:var(--ink-faint);margin-bottom:14px;gap:10px}
+.meta .learn{color:var(--green)} .meta .review{color:var(--amber)}
+.meta .scope{color:var(--ink-dim)}
+
+.stage{perspective:1600px}
+.card{position:relative;height:var(--card-h);cursor:pointer;outline:none}
+.face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;
+  border:1px solid var(--edge);border-radius:18px;padding:26px;display:flex;flex-direction:column;
+  background:linear-gradient(180deg,var(--panel-2) 0%,var(--panel) 100%);
+  transition:transform .5s cubic-bezier(.2,.7,.2,1),box-shadow .3s;
+  box-shadow:0 18px 50px -24px rgba(0,0,0,.8);transform-style:preserve-3d}
+.card.flipped .front{transform:rotateY(180deg)}
+.card.flipped .back{transform:rotateY(360deg)}
+.front{transform:rotateY(0)} .back{transform:rotateY(180deg)}
+.card-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+.codewrap{display:flex;align-items:center;gap:8px;min-width:0}
+.acscode{font-family:var(--mono);font-size:12px;letter-spacing:.04em;color:var(--ink);
+  background:#0c1015;border:1px solid var(--edge);border-radius:7px;padding:5px 9px;white-space:nowrap}
+.acscode b{color:var(--amber);font-weight:600}
+.subjbadge{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:42vw}
+.tag{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;padding:4px 8px;border-radius:6px;border:1px solid;flex:none}
+.tag.k{color:var(--blue);border-color:#23425f;background:#0f1b27}
+.tag.r{color:var(--amber);border-color:#4a3a18;background:#1f1809}
+.tag.s{color:var(--green);border-color:#1d4732;background:#0c1f16}
+.sidehint{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint)}
+.body{flex:1;display:flex;align-items:center;justify-content:center;text-align:center;overflow-y:auto;padding:6px 2px}
+.qtext{font-size:clamp(18px,3vw,24px);font-weight:600;line-height:1.4;letter-spacing:-.005em}
+.atext{font-size:clamp(16px,2.6vw,21px);font-weight:430;line-height:1.5;color:#eef3f8;white-space:pre-wrap}
+.atext.task{color:var(--green);font-weight:520}
+.card-foot{font-family:var(--mono);font-size:10.5px;color:var(--ink-faint);text-align:center;letter-spacing:.1em;text-transform:uppercase;margin-top:6px}
+
+.nav{display:flex;align-items:center;gap:12px;margin-top:18px}
+.nav .num{font-family:var(--mono);font-size:13px;color:var(--ink-dim);min-width:74px;text-align:center}
+.nav .num b{color:var(--ink)}
+.navbtn{flex:1;height:52px;border-radius:14px;border:1px solid var(--edge);background:var(--panel);
+  color:var(--ink);font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+.navbtn:hover{border-color:#3a4654}
+.navbtn:disabled{opacity:.32;cursor:default}
+.navbtn.know{border-color:#1d4732}.navbtn.know:hover{background:var(--green-soft)}
+.navbtn.dunno{border-color:#4a3a18}.navbtn.dunno:hover{background:var(--amber-soft)}
+.judge{display:flex;gap:12px;margin-top:12px}
+.kbd{font-family:var(--mono);font-size:10px;color:var(--ink-faint);border:1px solid var(--edge);border-radius:5px;padding:1px 5px;margin-left:4px}
+
+.done{border:1px solid var(--edge);border-radius:18px;background:linear-gradient(180deg,var(--panel-2),var(--panel));
+  padding:34px 26px;text-align:center;display:none}
+.done.show{display:block}
+.done h2{margin:0 0 6px;font-size:24px}
+.done p{color:var(--ink-dim);margin:6px 0 20px;font-family:var(--mono);font-size:13px}
+.donestats{display:flex;gap:14px;justify-content:center;margin-bottom:22px;flex-wrap:wrap}
+.stat{border:1px solid var(--edge);border-radius:12px;padding:14px 20px;min-width:96px;background:#0d1218}
+.stat .v{font-size:26px;font-weight:700}
+.stat .l{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);margin-top:4px}
+.stat.k .v{color:var(--green)} .stat.r .v{color:var(--amber)}
+.done .row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.btn{border:1px solid var(--edge);background:var(--panel);color:var(--ink);border-radius:12px;padding:12px 18px;font-size:14px;font-weight:600;cursor:pointer}
+.btn.primary{background:var(--amber);color:#1a1303;border-color:var(--amber)}
+.btn:hover{filter:brightness(1.08)}
+
+.switch{margin-top:26px;text-align:center;font-family:var(--mono);font-size:12px}
+.switch a{color:var(--ink-dim);text-decoration:none;border:1px solid var(--edge);border-radius:10px;padding:9px 14px;background:var(--panel)}
+.switch a:hover{color:var(--ink);border-color:#3a4654}
+.foot{margin-top:18px;text-align:center;font-family:var(--mono);font-size:10.5px;color:var(--ink-faint);letter-spacing:.06em;line-height:1.7}
+
+@media (max-width:520px){
+  .wrap{padding:16px 12px 32px}.face{padding:20px}.h-sub{font-size:11px;gap:10px}
+  .subjbadge{max-width:34vw}
+}
+@media (prefers-reduced-motion:reduce){.face{transition:none}.progress>i{transition:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="placard">
+    <p class="eyebrow">FAA Aviation Mechanic · Powerplant</p>
+    <h1 class="h-title">Propeller Orals</h1>
+    <div class="h-sub">
+      <span><b>45</b> cards</span>
+      <span><b>1</b> subject</span>
+      <span class="chip"><i class="dot k"></i>Knowledge <b>43</b></span>
+      <span class="chip"><i class="dot r"></i>Risk <b>2</b></span>
+    </div>
+  </header>
+
+  <div class="pickrow">
+    <p class="picklabel">Subject area</p>
+    <div class="subjects" id="subjects"></div>
+  </div>
+
+  <div class="controls">
+    <div class="seg" role="group" aria-label="Filter by type">
+      <button data-filter="all" aria-pressed="true">All</button>
+      <button data-filter="Knowledge" aria-pressed="false">Knowledge</button>
+      <button data-filter="Risk Management" aria-pressed="false">Risk</button>
+    </div>
+    <span class="spacer"></span>
+    <button class="iconbtn" id="shuffle" title="Shuffle (S)" aria-pressed="false">⇄</button>
+    <button class="iconbtn" id="star" title="Starred only (T)" aria-pressed="false">★</button>
+    <button class="iconbtn" id="restart" title="Restart (R)">↺</button>
+    <button class="iconbtn" id="exportp" title="Copy sync code (to move progress to another device)">⇪</button>
+    <button class="iconbtn" id="importp" title="Paste sync code (from your other device)">⇩</button>
+  </div>
+
+  <div class="progress" aria-hidden="true"><i id="bar"></i></div>
+  <div class="meta">
+    <span id="posmeta">Card 1 of 45</span>
+    <span class="scope" id="scopemeta"></span>
+    <span><span class="learn" id="learnt">0 known</span> · <span class="review" id="reviewt">0 to review</span></span>
+  </div>
+
+  <div class="stage" id="stage">
+    <div class="card" id="card" tabindex="0" role="button" aria-label="Flashcard. Press space or enter to flip.">
+      <div class="face front">
+        <div class="card-top">
+          <span class="codewrap"><span class="acscode" id="code-f"></span><span class="subjbadge" id="subj-f"></span></span>
+          <span class="tag" id="tag-f"></span>
+        </div>
+        <div class="body"><div class="qtext" id="q"></div></div>
+        <div class="card-foot">Tap or press space to flip · <span class="kbd">space</span></div>
+      </div>
+      <div class="face back">
+        <div class="card-top">
+          <span class="codewrap"><span class="acscode" id="code-b"></span><span class="subjbadge" id="subj-b"></span></span>
+          <span class="sidehint">Answer</span>
+        </div>
+        <div class="body"><div class="atext" id="a"></div></div>
+        <div class="card-foot" id="bfoot"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="judge" id="judge">
+    <button class="navbtn dunno" id="again">Still learning <span class="kbd">←</span></button>
+    <button class="navbtn know" id="got">Got it <span class="kbd">→</span></button>
+  </div>
+  <div class="nav">
+    <button class="navbtn" id="prev">‹ Prev</button>
+    <span class="num"><b id="curn">1</b> / <span id="totn">45</span></span>
+    <button class="navbtn" id="next">Next ›</button>
+  </div>
+
+  <div class="done" id="done">
+    <h2>Set complete</h2>
+    <p id="donesub"></p>
+    <div class="donestats">
+      <div class="stat k"><div class="v" id="d-known">0</div><div class="l">Known</div></div>
+      <div class="stat r"><div class="v" id="d-review">0</div><div class="l">To review</div></div>
+      <div class="stat"><div class="v" id="d-total">0</div><div class="l">Total</div></div>
+    </div>
+    <div class="row">
+      <button class="btn primary" id="redo-review">Review the hard ones</button>
+      <button class="btn" id="redo-all">Restart this set</button>
+    </div>
+  </div>
+
+  <div class="foot">
+    ACS codes per FAA Airman Certification Standards (Aviation Mechanic).<br>
+    Powerplant O&amp;P · Propellers · Knowledge &amp; Risk Management · Study aid only.
+  </div>
+</div>
+
+<script>
+const CARDS = [{"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K1", "q": "Why do some aircraft engines have a critical range of operation?", "a": "The engine and propeller combination have a resonant frequency problem in which excessive vibration can occur in a certain range of RPM. The tachometer for an aircraft with this limitation is marked with a red arc. When it is necessary to pass through this range it must be done as quickly as practical.", "n": 1}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K1", "q": "Does centrifugal twisting moment on a propeller blade tend to move the blades toward high pitch or toward low pitch?", "a": "Toward low pitch.", "n": 2}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K1", "q": "Do the counterweights on a propeller tend to move the blades toward high pitch or toward low pitch?", "a": "Toward high pitch.", "n": 3}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K1", "q": "What is the function of the accumulator used with some McCauley feathering propellers?", "a": "The accumulator stores oil under pressure when the engine is operating normally. This oil is used to help the propeller blades move toward low pitch when the propeller is being unfeathered.", "n": 4}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K1", "q": "What is meant by the alpha range of operation of a turboprop propeller?", "a": "This is the in-flight mode of operation from takeoff to landing.", "n": 5}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K1", "q": "Should an adjustable-pitch propeller be in high pitch or in low pitch for takeoff?", "a": "In low pitch.", "n": 6}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K1", "q": "What can be done to prevent the front cone from bottoming when installing a propeller on a splined shaft?", "a": "Install a spacer behind the rear cone to move the propeller forward on the shaft.", "n": 7}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K1", "q": "Why is a propeller indexed to the engine crankshaft?", "a": "The relationship between the propeller and the engine crankshaft is chosen to produce the minimum vibration.", "n": 8}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K2", "q": "What is the function of the snap ring inside the hub of a propeller that is mounted on a tapered or splined shaft?", "a": "The snap ring allows the propeller to be pulled loose from the shaft. When the retaining nut is backed off, it pulls against the snap ring and the propeller is loosened from the shaft.", "n": 9}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K2", "q": "What are the basic types of propellers?", "a": "Fixed pitch, ground adjustable, constant-speed non-feathering, and constant-speed feathering.", "n": 10}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K2", "q": "What materials are propeller blades made from?", "a": "Wood, aluminum, and composite construction.", "n": 11}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K3", "q": "What is adjusted inside the governor for a constant-speed propeller to change the speed at which the propeller is operating?", "a": "The compression of the speeder spring.", "n": 12}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K3", "q": "What is done to cause a McCauley propeller to feather?", "a": "Oil is allowed to drain out of the propeller.", "n": 13}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K3", "q": "What keeps a McCauley feathering propeller from feathering when the engine is shut down on the ground?", "a": "A spring-loaded latch mechanism prevents the blades moving into the feather position when the engine is shut down on the ground. In the air, aerodynamic forces keep the propeller rotating fast enough that centrifugal force holds the blades unlatched so they can move to the feather position when oil pressure is taken out of the propeller.", "n": 14}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K3", "q": "What is done to cause a hydromatic propeller to feather?", "a": "High-pressure engine oil is directed into the propeller through the governor.", "n": 15}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K4", "q": "What does the pilot do to change the RPM of an engine equipped with a constant-speed propeller when it is operating within the constant-speed range?", "a": "The pilot moves the propeller pitch control. This changes the compression on the speeder spring inside the governor which moves the pilot valve. The pilot valve directs oil into or out of the propeller to change the pitch of the blades. The change in pitch changes the air load on the propeller which changes the RPM.", "n": 16}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K4", "q": "What is the difference between a controllable propeller and a constant-speed propeller?", "a": "Basically, it is the control system. A controllable-pitch propeller uses a manually operated oil valve to control the pitch, and a constant-speed propeller uses a governor to control the valve.", "n": 17}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K4", "q": "When making a magneto check on an engine equipped with a constant-speed propeller, should the propeller control be in the low-pitch or the high-pitch position?", "a": "It should be in the low-pitch, high RPM position.", "n": 18}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K5", "q": "What is meant by the beta range of operation of a turboprop propeller?", "a": "This is the mode of ground operation, and it includes starting, taxiing, and ground reverse operation.", "n": 19}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K5", "q": "What controls the blade angle of a propeller when operating in the beta range?", "a": "When operating in the beta range, blade angle is controlled by the position of the power lever.", "n": 20}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K6", "q": "Where do you find a list of the lubricants that are approved for use in a constant-speed propeller?", "a": "In the maintenance manual for the propeller.", "n": 21}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K6", "q": "What is the extent of the repairs a mechanic with a Powerplant rating can make to a propeller?", "a": "Only minor repairs or minor alterations.", "n": 22}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K6", "q": "Where can examples of acceptable repairs to aluminum alloy propeller blades be found?", "a": "In AC 43.13-1B, Chapter 8, Section 4, and in the propeller manufacturer's service manuals.", "n": 23}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K6", "q": "Is it permissible to cold straighten a damaged aluminum alloy propeller blade to facilitate shipping it to a repair station?", "a": "No, this could cause hidden damage that may render the blade nonrepairable.", "n": 24}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K6", "q": "What would be the classification of maintenance for shortening a propeller blade?", "a": "Major repair.", "n": 25}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K6", "q": "May transverse cracks in a metal propeller blade be repaired?", "a": "No, a transverse crack of any size is reason for rejecting the blade.", "n": 26}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K6", "q": "What damage to an aluminum alloy propeller blade can be repaired by a mechanic holding a Powerplant rating?", "a": "Small roughness, nicks, and scratches in the leading edge of the blades.", "n": 27}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K6", "q": "How are small nicks removed from the leading edge of a propeller blade?", "a": "File them out with a fine file or stone, leaving a smooth contour.", "n": 28}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K6", "q": "How can you determine that a surface scratch in an aluminum alloy propeller blade is not actually a crack?", "a": "Clean the damage out to a saucer-shaped depression and spray the area with a dye penetrant liquid. Allow it time to seep into a crack if one is present, then wipe all of the liquid off the surface. Spray the area with a developer. If the damage is actually a crack, the developer will pull the penetrant out and it will form a visible line.", "n": 29}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K6", "q": "Who, or what facility, is authorized to perform major repairs to a propeller?", "a": "An FAA-approved propeller repair station that is authorized for the specific propeller.", "n": 30}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K6", "q": "What checks and maintenance is a mechanic with a Powerplant rating allowed to make on a propeller?", "a": "\u2022 Check the track of the propeller blades. \u2022 Remove small nicks and scratches from the blades. \u2022 Check the dynamic balance of a propeller. \u2022 Lubricate the propeller.", "n": 31}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K6", "q": "What adjustment can a mechanic with a Powerplant rating make to a propeller governor?", "a": "Adjust the maximum RPM stop.", "n": 32}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K6", "q": "What instrument is used to measure the blade angle of a propeller?", "a": "A universal propeller protractor.", "n": 33}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K6", "q": "Where is the propeller protractor placed to measure the propeller blade angle?", "a": "At a distance from the center of the propeller hub. This distance is specified in the propeller maintenance manual in terms of propeller blade stations.", "n": 34}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K7", "q": "What are the basic steps for removing a typical propeller?", "a": "1. Remove the spinner and remove safety wire from the mounting bolts. 2. Support the propeller with a sling and mark the alignment between the propeller hub and the engine flange with a felt-tipped pen. 3. Unscrew the mounting nuts and protect the threads of the mounting studs or bolts as the propeller is removed. 4. Place the propeller on a cart for transport.", "n": 35}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K7", "q": "What alignment method is used to align a propeller to the engine in a position that reduces operating vibrations?", "a": "Special studs or dowel pins align the propeller to the engine in the proper orientation.", "n": 36}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K8", "q": "Who is allowed to reduce the diameter of a type certificated propeller?", "a": "An FAA-certificated propeller repair station with approval for the particular propeller.", "n": 37}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K8", "q": "Which type certificate data sheet (aircraft, engine, or propeller TCDS) specifies that a propeller can be installed on the aircraft in question?", "a": "The aircraft TCDS specifies which propellers are approved for installation.", "n": 38}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K9", "q": "What is meant by a slave engine with regard to propeller synchronization?", "a": "This is the engine in a multi-engine airplane whose RPMs follow those set on the master engine.", "n": 39}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K9", "q": "How are propellers on a twin-engine airplane synchronized?", "a": "The propeller governor of the master engine is set to the desired RPM. A signal from the master engine governor is sent to the control box which sends a signal to a stepping motor. This motor adjusts the propeller governor and fuel control of the slave engine causing it to maintain exactly the same RPM as the master engine.", "n": 40}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K10", "q": "How is ice prevented from forming on propeller blades?", "a": "A chemical anti-icing system is used. A mixture of isopropyl alcohol and ethylene glycol is pumped into a slinger ring on the back of the propeller hub. From there centrifugal force slings it out along the blades. Ice cannot form on the resulting slick surface.", "n": 41}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K10", "q": "How is ice removed from propeller blades?", "a": "An electrothermal deicing system is used. Electrical heating elements are embedded in rubber boots that are bonded to the leading edges of the blades. Low-voltage DC flows from the propeller deicer control through brushes and slip rings to the heating elements. The timer sends current to one propeller for about 90 seconds and then to the other for the next 90 seconds. This allows the ice to form and then break loose and blow away.", "n": 42}, {"sub": "Propellers", "cat": "Knowledge", "code": "AM.III.M.K10", "q": "How can you determine that the electrically heated deicer boots on the propeller blades are working as they should?", "a": "Observe the load meter or ammeter to see if the proper current is flowing, and follow the sequence of boot heating by feeling with your hands to see which one is heating. The boots should all have a similar heat rise in the same length of time.", "n": 43}, {"sub": "Propellers", "cat": "Risk Management", "code": "AM.III.M.R1", "q": "What dangers are present when operating a propeller on the ground?", "a": "Propellers become almost invisible when spinning rapidly and may not be visible to individuals close to the airplane. Measures must be in place to prevent people from approaching the airplane when the engine is running. Propeller blast is also a potential danger that can cause damage to equipment or other aircraft that are behind the running engine. Before starting an engine, the aviation mechanic must use caution and understand what is behind the operating engine. In addition, the area below and in front of the propeller must be checked for gravel, small rocks, and other items that could become FOD and damage the propeller when the engine is started.", "n": 1}, {"sub": "Propellers", "cat": "Risk Management", "code": "AM.III.M.R2", "q": "What is the critical nature of propeller maintenance and inspection?", "a": "The loads on a spinning propeller are extremely high. Small damage and improper maintenance can lead to catastrophic damage to the aircraft due to failure of the propeller. Maintenance manual procedures must be followed at all times.", "n": 2}];
+const SUBTITLES = {};
+const SECTION = "Propellers";
+const TAGS = {'Knowledge':'k','Risk Management':'r','Skills':'s'};
+const TAGLABEL = {'Knowledge':'Knowledge','Risk Management':'Risk','Skills':'Skill'};
+
+let subject='all', filter='all', starred=new Set(), useStarOnly=false, shuffled=false;
+let order=[], idx=0, flipped=false;
+const known=new Set(), review=new Set();
+const $=id=>document.getElementById(id);
+
+/* ---- Progress persistence (works in Safari / any real browser; silently off in restricted previews) ---- */
+const STORE_KEY='acsdeck.Propellers.v3';
+let canStore=false;
+try{localStorage.setItem('__t','1');localStorage.removeItem('__t');canStore=true;}catch(e){canStore=false;}
+function saveState(){
+  if(!canStore)return;
+  try{localStorage.setItem(STORE_KEY,JSON.stringify({
+    subject,filter,shuffled,useStarOnly,idx,order,
+    known:[...known],review:[...review],starred:[...starred]
+  }));}catch(e){}
+}
+function loadState(){
+  if(!canStore)return false;
+  try{
+    const raw=localStorage.getItem(STORE_KEY);
+    if(!raw)return false;
+    const s=JSON.parse(raw);
+    subject=s.subject||'all'; filter=s.filter||'all';
+    shuffled=!!s.shuffled; useStarOnly=!!s.useStarOnly;
+    (s.starred||[]).forEach(x=>starred.add(x));
+    (s.known||[]).forEach(x=>known.add(x));
+    (s.review||[]).forEach(x=>review.add(x));
+    if(Array.isArray(s.order)&&s.order.length&&s.order.every(i=>i>=0&&i<CARDS.length)){
+      order=s.order; idx=Math.min(s.idx||0,order.length);
+      return true;
+    }
+    return false;
+  }catch(e){return false;}
+}
+/* ---- Cross-device sync via copy/paste code ---- */
+function packState(){
+  return btoa(unescape(encodeURIComponent(JSON.stringify({
+    d:SECTION,subject,filter,shuffled,useStarOnly,idx,order,
+    known:[...known],review:[...review],starred:[...starred]
+  }))));
+}
+function applyPacked(code){
+  const s=JSON.parse(decodeURIComponent(escape(atob(code.trim()))));
+  if(s.d!==SECTION) throw new Error('wrongdeck:'+s.d);
+  if(!Array.isArray(s.order)||!s.order.every(i=>i>=0&&i<CARDS.length)) throw new Error('bad');
+  subject=s.subject||'all'; filter=s.filter||'all';
+  shuffled=!!s.shuffled; useStarOnly=!!s.useStarOnly;
+  known.clear(); review.clear(); starred.clear();
+  (s.known||[]).forEach(x=>known.add(x));
+  (s.review||[]).forEach(x=>review.add(x));
+  (s.starred||[]).forEach(x=>starred.add(x));
+  order=s.order; idx=Math.min(s.idx||0,order.length); flipped=false;
+  document.querySelectorAll('.subj').forEach(b=>b.setAttribute('aria-pressed', b.dataset.subject===subject?'true':'false'));
+  document.querySelectorAll('.seg button').forEach(b=>b.setAttribute('aria-pressed', b.dataset.filter===filter?'true':'false'));
+  $('shuffle').setAttribute('aria-pressed',shuffled);
+  $('star').setAttribute('aria-pressed',useStarOnly);
+}
+async function exportProgress(){
+  const code=packState();
+  let copied=false;
+  try{ await navigator.clipboard.writeText(code); copied=true; }catch(e){}
+  if(copied){ alert('Sync code copied to clipboard.\n\nOn your other device, open this same deck, tap the ⇩ button, and paste it.'); }
+  else{ prompt('Copy this sync code, then paste it into the ⇩ button on your other device:', code); }
+}
+function importProgress(){
+  const code=prompt('Paste the sync code from your other device:');
+  if(!code) return;
+  try{
+    applyPacked(code);
+    render();
+    alert('Progress restored: '+known.size+' known, '+review.size+' to review.');
+  }catch(e){
+    if((''+e.message).startsWith('wrongdeck')) alert('That code is from the other deck ('+e.message.split(':')[1]+'). Open that deck and paste it there.');
+    else alert('That code could not be read. Make sure you copied the whole thing.');
+  }
+}
+
+// Build subject picker
+(function(){
+  const host=$('subjects');
+  const subs=[...new Set(CARDS.map(c=>c.sub))].sort();
+  const mk=(key,label,count,cls='')=>{
+    const b=document.createElement('button');
+    b.className='subj '+cls; b.dataset.subject=key;
+    b.setAttribute('aria-pressed', key==='all'?'true':'false');
+    b.innerHTML='<span class="l">'+label+'</span><span class="c">'+count+'</span>';
+    b.title = key==='all' ? 'All subjects' : (SUBTITLES[key]||'');
+    b.addEventListener('click',()=>{
+      document.querySelectorAll('.subj').forEach(x=>x.setAttribute('aria-pressed','false'));
+      b.setAttribute('aria-pressed','true'); subject=key;
+      known.clear(); review.clear(); buildOrder(); render();
+    });
+    host.appendChild(b);
+  };
+  mk('all','ALL',CARDS.length,'allbtn');
+  subs.forEach(s=>mk(s,s,CARDS.filter(c=>c.sub===s).length));
+})();
+
+function baseList(){
+  let list=CARDS.map((c,i)=>({...c,_i:i}));
+  if(subject!=='all') list=list.filter(c=>c.sub===subject);
+  if(filter!=='all') list=list.filter(c=>c.cat===filter);
+  if(useStarOnly) list=list.filter(c=>starred.has(c._i));
+  return list;
+}
+function buildOrder(){
+  let list=baseList();
+  order=list.map(c=>c._i);
+  if(shuffled){for(let k=order.length-1;k>0;k--){const j=Math.floor(Math.random()*(k+1));[order[k],order[j]]=[order[j],order[k]];}}
+  idx=0; flipped=false;
+}
+function curCard(){return CARDS[order[idx]];}
+
+function render(){
+  const done=$('done');
+  if(order.length===0){
+    done.classList.remove('show'); $('stage').style.display=''; $('judge').style.display='';
+    document.querySelector('.nav').style.display='';
+    $('q').textContent='No cards match these filters.'; $('a').textContent='';
+    $('code-f').innerHTML=''; $('tag-f').textContent=''; $('subj-f').textContent='';
+    updateMeta(); return;
+  }
+  if(idx>=order.length){showDone();return;}
+  done.classList.remove('show'); $('stage').style.display='';
+  $('judge').style.display=''; document.querySelector('.nav').style.display='';
+  const c=curCard();
+  const codeHtml=formatCode(c.code);
+  $('code-f').innerHTML=codeHtml; $('code-b').innerHTML=codeHtml;
+  const subjLabel = SUBTITLES[c.sub] ? c.sub+' · '+SUBTITLES[c.sub] : c.sub;
+  $('subj-f').textContent=subjLabel; $('subj-b').textContent=subjLabel;
+  const t=TAGS[c.cat]; $('tag-f').className='tag '+t; $('tag-f').textContent=TAGLABEL[c.cat];
+  $('q').textContent=c.q;
+  const isTask=!c.a||c.a.trim()==='';
+  if(isTask){
+    $('a').textContent='Practical task — demonstrate to the examiner. (No written answer; perform the procedure.)';
+    $('a').className='atext task'; $('bfoot').textContent='Skills / hands-on item';
+  }else{ $('a').textContent=c.a; $('a').className='atext'; $('bfoot').textContent=''; }
+  const card=$('card'); card.classList.toggle('flipped',flipped);
+  card.setAttribute('aria-label',(flipped?'Answer. ':'Question. ')+'Press space to flip.');
+  updateMeta();
+}
+function formatCode(code){
+  const m=code.match(/^(.*\.)([KRS].+)$/);
+  const starOn=starred.has(order[idx]);
+  const starMark=starOn?' <span style="color:var(--amber)">★</span>':'';
+  if(m) return esc(m[1])+'<b>'+esc(m[2])+'</b>'+starMark;
+  return esc(code)+starMark;
+}
+function esc(s){return (s+'').replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));}
+function updateMeta(){
+  const total=order.length, pos=Math.min(idx+1,total);
+  $('posmeta').textContent= total?`Card ${pos} of ${total}`:'No cards';
+  $('curn').textContent=pos; $('totn').textContent=total;
+  $('bar').style.width= total?(Math.min(idx,total)/total*100)+'%':'0%';
+  $('learnt').textContent=known.size+' known';
+  $('reviewt').textContent=review.size+' to review';
+  const scopeBits=[];
+  scopeBits.push(subject==='all'?'All subjects':('Subject '+subject));
+  if(filter!=='all') scopeBits.push(filter);
+  if(useStarOnly) scopeBits.push('starred');
+  if(shuffled) scopeBits.push('shuffled');
+  if(canStore) scopeBits.push('auto-saved');
+  $('scopemeta').textContent=scopeBits.join(' · ');
+  $('prev').disabled=idx<=0;
+  saveState();
+}
+function flip(){if(order.length===0)return;flipped=!flipped;$('card').classList.toggle('flipped',flipped);
+  $('card').setAttribute('aria-label',(flipped?'Answer. ':'Question. ')+'Press space to flip.');}
+function go(d){if(order.length===0)return;idx+=d;flipped=false;if(idx<0)idx=0;render();}
+function judge(g){if(order.length===0||idx>=order.length)return;const gi=order[idx];
+  if(g){known.add(gi);review.delete(gi);}else{review.add(gi);known.delete(gi);}
+  flipped=false;idx++;render();}
+function showDone(){
+  $('stage').style.display='none';$('judge').style.display='none';document.querySelector('.nav').style.display='none';
+  $('done').classList.add('show');
+  $('d-known').textContent=known.size;$('d-review').textContent=review.size;$('d-total').textContent=order.length;
+  $('bar').style.width='100%';$('posmeta').textContent=`Card ${order.length} of ${order.length}`;$('curn').textContent=order.length;
+  $('donesub').textContent=review.size?`You flagged ${review.size} card${review.size>1?'s':''} to review.`:'Clean run — nice work.';
+  saveState();
+}
+document.querySelectorAll('.seg button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.seg button').forEach(x=>x.setAttribute('aria-pressed','false'));
+  b.setAttribute('aria-pressed','true');filter=b.dataset.filter;
+  known.clear();review.clear();buildOrder();render();
+}));
+$('shuffle').addEventListener('click',()=>{shuffled=!shuffled;$('shuffle').setAttribute('aria-pressed',shuffled);buildOrder();render();});
+$('star').addEventListener('click',()=>{useStarOnly=!useStarOnly;$('star').setAttribute('aria-pressed',useStarOnly);buildOrder();render();});
+$('restart').addEventListener('click',restart);
+$('exportp').addEventListener('click',exportProgress);
+$('importp').addEventListener('click',importProgress);
+function restart(){known.clear();review.clear();buildOrder();render();}
+$('card').addEventListener('click',flip);
+$('card').addEventListener('keydown',e=>{if(e.code==='Space'||e.code==='Enter'){e.preventDefault();flip();}});
+$('prev').addEventListener('click',()=>go(-1));
+$('next').addEventListener('click',()=>go(1));
+$('again').addEventListener('click',()=>judge(false));
+$('got').addEventListener('click',()=>judge(true));
+$('redo-all').addEventListener('click',restart);
+$('redo-review').addEventListener('click',()=>{const ids=[...review];if(ids.length===0){restart();return;}
+  known.clear();order=ids;review.clear();idx=0;flipped=false;$('done').classList.remove('show');render();});
+function toggleStar(){if(order.length===0)return;const gi=order[idx];if(starred.has(gi))starred.delete(gi);else starred.add(gi);render();}
+window.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT')return;
+  switch(e.key){
+    case 'ArrowRight':e.preventDefault();flipped?judge(true):go(1);break;
+    case 'ArrowLeft':e.preventDefault();flipped?judge(false):go(-1);break;
+    case ' ':case 'Enter':if(e.target===$('card'))return;e.preventDefault();flip();break;
+    case 's':case 'S':$('shuffle').click();break;
+    case 'r':case 'R':restart();break;
+    case 'f':case 'F':toggleStar();break;
+    case 't':case 'T':$('star').click();break;
+  }
+});
+/* Init: resume saved progress if present, else fresh */
+if(loadState()){
+  document.querySelectorAll('.subj').forEach(b=>b.setAttribute('aria-pressed', b.dataset.subject===subject?'true':'false'));
+  document.querySelectorAll('.seg button').forEach(b=>b.setAttribute('aria-pressed', b.dataset.filter===filter?'true':'false'));
+  $('shuffle').setAttribute('aria-pressed',shuffled);
+  $('star').setAttribute('aria-pressed',useStarOnly);
+  render();
+}else{
+  buildOrder();render();
+}
+</script>
+</body>
+</html>
