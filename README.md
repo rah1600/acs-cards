@@ -7,4 +7,4 @@ Oral and Practical Flashcards
 
 [Powerplant - Proppellers Flashcards](https://rah1600.github.io/acs-cards/Propellers.html)
 
-[Powerplant - Turbine Engine Systems Flashcards]((https://rah1600.github.io/acs-cards/turbine_engine_systems.html))
+[Powerplant - Turbine Engine Systems Flashcards]((https://rah1600.github.io/acs-cards/turbine_engine_systems.html)
