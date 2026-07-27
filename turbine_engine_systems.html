@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Powerplant — ACS Flashcards</title>
+<style>
+:root{
+  --bg:#0e1116; --panel:#161b22; --panel-2:#1c232d; --edge:#2a333f;
+  --ink:#e8edf2; --ink-dim:#9aa7b4; --ink-faint:#5f6b78;
+  --amber:#f5a623; --amber-soft:#3a2e16;
+  --green:#39d98a; --green-soft:#163326;
+  --red:#ff6b6b; --red-soft:#3a1c1c;
+  --blue:#4aa3ff;
+  --mono:"SFMono-Regular",ui-monospace,"Cascadia Mono","Roboto Mono",Menlo,Consolas,monospace;
+  --sans:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --card-h:clamp(320px,52vh,520px);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:radial-gradient(1200px 600px at 50% -10%, #19212c 0%, transparent 60%), var(--bg);
+  color:var(--ink); font-family:var(--sans); -webkit-font-smoothing:antialiased; min-height:100vh;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+.wrap{max-width:760px;margin:0 auto;padding:22px 18px 40px}
+
+.placard{border:1px solid var(--edge);background:linear-gradient(180deg,var(--panel) 0%,#12171e 100%);
+  border-radius:14px;padding:16px 18px;position:relative;overflow:hidden}
+.placard:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:linear-gradient(180deg,var(--amber),#b9791a)}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--amber);margin:0 0 6px}
+.h-title{font-size:clamp(19px,3.6vw,26px);font-weight:700;letter-spacing:-.01em;margin:0;line-height:1.15}
+.h-sub{font-family:var(--mono);font-size:12px;color:var(--ink-dim);margin-top:8px;display:flex;gap:14px;flex-wrap:wrap}
+.h-sub b{color:var(--ink);font-weight:600}
+.chip{display:inline-flex;align-items:center;gap:6px}
+.dot{width:8px;height:8px;border-radius:2px;display:inline-block}
+.dot.k{background:var(--blue)} .dot.r{background:var(--amber)} .dot.s{background:var(--green)}
+
+/* Subject (section) picker */
+.pickrow{margin:16px 0 4px}
+.picklabel{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-faint);margin:0 0 8px}
+.subjects{display:flex;gap:7px;flex-wrap:wrap}
+.subj{font-family:var(--mono);font-size:12px;border:1px solid var(--edge);background:var(--panel);color:var(--ink-dim);
+  border-radius:9px;padding:8px 11px;cursor:pointer;display:flex;align-items:center;gap:7px;line-height:1}
+.subj:hover{border-color:#3a4654;color:var(--ink)}
+.subj[aria-pressed=true]{background:var(--amber);color:#1a1303;border-color:var(--amber)}
+.subj .l{font-weight:700}
+.subj .c{font-size:10px;opacity:.7}
+.subj.allbtn[aria-pressed=true]{background:var(--blue);border-color:var(--blue);color:#04121f}
+
+/* Controls row */
+.controls{display:flex;gap:8px;align-items:center;margin:16px 0 14px;flex-wrap:wrap}
+.seg{display:flex;border:1px solid var(--edge);border-radius:10px;overflow:hidden;background:var(--panel)}
+.seg button{background:transparent;border:0;color:var(--ink-dim);font-family:var(--mono);font-size:11px;
+  letter-spacing:.06em;text-transform:uppercase;padding:8px 11px;cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--panel-2);color:var(--ink)}
+.seg button+button{border-left:1px solid var(--edge)}
+.spacer{flex:1}
+.iconbtn{background:var(--panel);border:1px solid var(--edge);color:var(--ink-dim);border-radius:10px;
+  width:38px;height:38px;font-size:15px;cursor:pointer;display:grid;place-items:center}
+.iconbtn:hover{color:var(--ink);border-color:#3a4654}
+.iconbtn[aria-pressed=true]{color:var(--amber);border-color:var(--amber)}
+
+.progress{height:5px;background:var(--panel);border:1px solid var(--edge);border-radius:99px;overflow:hidden;margin-bottom:6px}
+.progress > i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--amber),#ffce6b);transition:width .25s ease}
+.meta{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;color:var(--ink-faint);margin-bottom:14px;gap:10px}
+.meta .learn{color:var(--green)} .meta .review{color:var(--amber)}
+.meta .scope{color:var(--ink-dim)}
+
+.stage{perspective:1600px}
+.card{position:relative;height:var(--card-h);cursor:pointer;outline:none}
+.face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;
+  border:1px solid var(--edge);border-radius:18px;padding:26px;display:flex;flex-direction:column;
+  background:linear-gradient(180deg,var(--panel-2) 0%,var(--panel) 100%);
+  transition:transform .5s cubic-bezier(.2,.7,.2,1),box-shadow .3s;
+  box-shadow:0 18px 50px -24px rgba(0,0,0,.8);transform-style:preserve-3d}
+.card.flipped .front{transform:rotateY(180deg)}
+.card.flipped .back{transform:rotateY(360deg)}
+.front{transform:rotateY(0)} .back{transform:rotateY(180deg)}
+.card-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+.codewrap{display:flex;align-items:center;gap:8px;min-width:0}
+.acscode{font-family:var(--mono);font-size:12px;letter-spacing:.04em;color:var(--ink);
+  background:#0c1015;border:1px solid var(--edge);border-radius:7px;padding:5px 9px;white-space:nowrap}
+.acscode b{color:var(--amber);font-weight:600}
+.subjbadge{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:42vw}
+.tag{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;padding:4px 8px;border-radius:6px;border:1px solid;flex:none}
+.tag.k{color:var(--blue);border-color:#23425f;background:#0f1b27}
+.tag.r{color:var(--amber);border-color:#4a3a18;background:#1f1809}
+.tag.s{color:var(--green);border-color:#1d4732;background:#0c1f16}
+.sidehint{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint)}
+.body{flex:1;display:flex;align-items:center;justify-content:center;text-align:center;overflow-y:auto;padding:6px 2px}
+.qtext{font-size:clamp(18px,3vw,24px);font-weight:600;line-height:1.4;letter-spacing:-.005em}
+.atext{font-size:clamp(16px,2.6vw,21px);font-weight:430;line-height:1.5;color:#eef3f8;white-space:pre-wrap}
+.atext.task{color:var(--green);font-weight:520}
+.qtext.sm{font-size:clamp(16px,2.6vw,20px)}
+.qtext.xs{font-size:clamp(14.5px,2.2vw,17px);line-height:1.45}
+.atext.sm{font-size:clamp(14.5px,2.3vw,17.5px)}
+.atext.xs{font-size:clamp(13px,2vw,15px);line-height:1.55}
+.body.long{align-items:flex-start;text-align:left}
+.card-foot{font-family:var(--mono);font-size:10.5px;color:var(--ink-faint);text-align:center;letter-spacing:.1em;text-transform:uppercase;margin-top:6px}
+
+.nav{display:flex;align-items:center;gap:12px;margin-top:18px}
+.nav .num{font-family:var(--mono);font-size:13px;color:var(--ink-dim);min-width:74px;text-align:center}
+.nav .num b{color:var(--ink)}
+.navbtn{flex:1;height:52px;border-radius:14px;border:1px solid var(--edge);background:var(--panel);
+  color:var(--ink);font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+.navbtn:hover{border-color:#3a4654}
+.navbtn:disabled{opacity:.32;cursor:default}
+.navbtn.know{border-color:#1d4732}.navbtn.know:hover{background:var(--green-soft)}
+.navbtn.dunno{border-color:#4a3a18}.navbtn.dunno:hover{background:var(--amber-soft)}
+.judge{display:flex;gap:12px;margin-top:12px}
+.kbd{font-family:var(--mono);font-size:10px;color:var(--ink-faint);border:1px solid var(--edge);border-radius:5px;padding:1px 5px;margin-left:4px}
+
+.done{border:1px solid var(--edge);border-radius:18px;background:linear-gradient(180deg,var(--panel-2),var(--panel));
+  padding:34px 26px;text-align:center;display:none}
+.done.show{display:block}
+.done h2{margin:0 0 6px;font-size:24px}
+.done p{color:var(--ink-dim);margin:6px 0 20px;font-family:var(--mono);font-size:13px}
+.donestats{display:flex;gap:14px;justify-content:center;margin-bottom:22px;flex-wrap:wrap}
+.stat{border:1px solid var(--edge);border-radius:12px;padding:14px 20px;min-width:96px;background:#0d1218}
+.stat .v{font-size:26px;font-weight:700}
+.stat .l{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);margin-top:4px}
+.stat.k .v{color:var(--green)} .stat.r .v{color:var(--amber)}
+.done .row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.btn{border:1px solid var(--edge);background:var(--panel);color:var(--ink);border-radius:12px;padding:12px 18px;font-size:14px;font-weight:600;cursor:pointer}
+.btn.primary{background:var(--amber);color:#1a1303;border-color:var(--amber)}
+.btn:hover{filter:brightness(1.08)}
+
+.switch{margin-top:26px;text-align:center;font-family:var(--mono);font-size:12px}
+.switch a{color:var(--ink-dim);text-decoration:none;border:1px solid var(--edge);border-radius:10px;padding:9px 14px;background:var(--panel)}
+.switch a:hover{color:var(--ink);border-color:#3a4654}
+.foot{margin-top:18px;text-align:center;font-family:var(--mono);font-size:10.5px;color:var(--ink-faint);letter-spacing:.06em;line-height:1.7}
+
+@media (max-width:520px){
+  .wrap{padding:16px 12px 32px}.face{padding:20px}.h-sub{font-size:11px;gap:10px}
+  .subjbadge{max-width:34vw}
+}
+@media (prefers-reduced-motion:reduce){.face{transition:none}.progress>i{transition:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="placard">
+    <p class="eyebrow">FAA Aviation Mechanic · Powerplant</p>
+    <h1 class="h-title">The Powerplant Oral &amp; Practical</h1>
+    <div class="h-sub">
+      <span><b>29</b> cards</span>
+      <span><b>1</b> subjects</span>
+      <span class="chip"><i class="dot k"></i>Knowledge <b>25</b></span>
+      <span class="chip"><i class="dot r"></i>Risk <b>4</b></span>
+      <span class="chip"><i class="dot s"></i>Skills <b>0</b></span>
+    </div>
+  </header>
+
+  <div class="pickrow">
+    <p class="picklabel">Subject area</p>
+    <div class="subjects" id="subjects"></div>
+  </div>
+
+  <div class="controls">
+    <div class="seg" role="group" aria-label="Filter by type">
+      <button data-filter="all" aria-pressed="true">All</button>
+      <button data-filter="Knowledge" aria-pressed="false">Knowledge</button>
+      <button data-filter="Risk Management" aria-pressed="false">Risk</button>
+      <button data-filter="Skills" aria-pressed="false">Skills</button>
+    </div>
+    <span class="spacer"></span>
+    <button class="iconbtn" id="shuffle" title="Shuffle (S)" aria-pressed="false">⇄</button>
+    <button class="iconbtn" id="star" title="Starred only (T)" aria-pressed="false">★</button>
+    <button class="iconbtn" id="restart" title="Restart (R)">↺</button>
+    <button class="iconbtn" id="exportp" title="Copy sync code (to move progress to another device)">⇪</button>
+    <button class="iconbtn" id="importp" title="Paste sync code (from your other device)">⇩</button>
+  </div>
+
+  <div class="progress" aria-hidden="true"><i id="bar"></i></div>
+  <div class="meta">
+    <span id="posmeta">Card 1 of 29</span>
+    <span class="scope" id="scopemeta"></span>
+    <span><span class="learn" id="learnt">0 known</span> · <span class="review" id="reviewt">0 to review</span></span>
+  </div>
+
+  <div class="stage" id="stage">
+    <div class="card" id="card" tabindex="0" role="button" aria-label="Flashcard. Press space or enter to flip.">
+      <div class="face front">
+        <div class="card-top">
+          <span class="codewrap"><span class="acscode" id="code-f"></span><span class="subjbadge" id="subj-f"></span></span>
+          <span class="tag" id="tag-f"></span>
+        </div>
+        <div class="body" id="qbody"><div class="qtext" id="q"></div></div>
+        <div class="card-foot">Tap or press space to flip · <span class="kbd">space</span></div>
+      </div>
+      <div class="face back">
+        <div class="card-top">
+          <span class="codewrap"><span class="acscode" id="code-b"></span><span class="subjbadge" id="subj-b"></span></span>
+          <span class="sidehint">Answer</span>
+        </div>
+        <div class="body" id="abody"><div class="atext" id="a"></div></div>
+        <div class="card-foot" id="bfoot"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="judge" id="judge">
+    <button class="navbtn dunno" id="again">Still learning <span class="kbd">←</span></button>
+    <button class="navbtn know" id="got">Got it <span class="kbd">→</span></button>
+  </div>
+  <div class="nav">
+    <button class="navbtn" id="prev">‹ Prev</button>
+    <span class="num"><b id="curn">1</b> / <span id="totn">29</span></span>
+    <button class="navbtn" id="next">Next ›</button>
+  </div>
+
+  <div class="done" id="done">
+    <h2>Set complete</h2>
+    <p id="donesub"></p>
+    <div class="donestats">
+      <div class="stat k"><div class="v" id="d-known">0</div><div class="l">Known</div></div>
+      <div class="stat r"><div class="v" id="d-review">0</div><div class="l">To review</div></div>
+      <div class="stat"><div class="v" id="d-total">0</div><div class="l">Total</div></div>
+    </div>
+    <div class="row">
+      <button class="btn primary" id="redo-review">Review the hard ones</button>
+      <button class="btn" id="redo-all">Restart this set</button>
+    </div>
+  </div>
+
+  <div class="switch"><a href="general.html">Switch to General deck →</a></div>
+  <div class="foot">
+    ACS codes per FAA Airman Certification Standards (Aviation Mechanic).<br>
+    Content from ASA <i>Aviation Mechanic Oral &amp; Practical Exam Guide</i>, 5th ed. · Study aid only.
+  </div>
+</div>
+
+<script>
+const CARDS = [{"n": 1, "cat": "Knowledge", "sub": "B", "code": "AM.III.B.K1", "q": "How are the four strokes of a reciprocating engine similar to the sections of a turbine engine?", "a": "Intake = air inlet section, compression = compressor section, ignition and power = combustion and turbine sections, exhaust = exhaust section."}, {"n": 2, "cat": "Knowledge", "sub": "B", "code": "AM.III.B.K1", "q": "What type of turbojet engine is commonly used in commercial aviation due to lower noise and better fuel consumption?", "a": "High-bypass turbofan engines."}, {"n": 3, "cat": "Knowledge", "sub": "B", "code": "AM.III.B.K2", "q": "What four types of gas turbine engines are used in aircraft?", "a": "Turbofan, turboprop, turboshaft, and turbojet."}, {"n": 4, "cat": "Knowledge", "sub": "B", "code": "AM.III.B.K3", "q": "What are the two types of turbine compressors?", "a": "Centrifugal flow and axial flow."}, {"n": 5, "cat": "Knowledge", "sub": "B", "code": "AM.III.B.K4", "q": "What is meant by trimming a turbine engine?", "a": "Adjusting the fuel control so the engine develops the correct idle and trim speed RPM."}, {"n": 6, "cat": "Knowledge", "sub": "B", "code": "AM.III.B.K4", "q": "What type of equipment should be used to determine that a turbine engine is performing up to the standards specified by the engine manufacturer?", "a": "A JetCal analyzer/trimmer has all of the instrumentation and cables to determine the EGT, EPR, and other parameters specified by the engine manufacturer."}, {"n": 7, "cat": "Knowledge", "sub": "B", "code": "AM.III.B.K5", "q": "What is meant by a hot-section inspection?", "a": "An inspection of the hot section of a turbine engine. The hot section includes the combustors, the turbine, and the exhaust system."}, {"n": 8, "cat": "Knowledge", "sub": "B", "code": "AM.III.B.K5", "q": "What is meant by on-condition maintenance of a turbine engine?", "a": "The monitoring of the engine performance at regular intervals and determining when maintenance is required based on certain operating parameters specified by the engine manufacturer."}, {"n": 9, "cat": "Knowledge", "sub": "B", "code": "AM.III.B.K5", "q": "What checks of a turbine engine are necessary to verify preflight condition?", "a": "a. Inspect the cowling and all air inlet areas and attachment of the engine to the airframe. b. Inspect the inlet guide vanes and the first stage of the compressor or fan blades. c. Check for unusual noise when the compressor is rotated. d. Inspect the rear turbine and exhaust system. e. Check the quantity of the lubricating oil for the engine and the constant-speed drive unit. f. Check the ignition system for operation by listening for the sparks."}, {"n": 10, "cat": "Knowledge", "sub": "B", "code": "AM.III.B.K6", "q": "What engine instruments are monitored during the start of a turbine engine?", "a": "Tachometer, oil pressure, and internal gas temperatures."}, {"n": 11, "cat": "Knowledge", "sub": "B", "code": "AM.III.B.K6", "q": "What checks are performed after the installation of a turbine engine?", "a": "After starting and idle speed is obtained, the engine should stabilize, and engine instrument values are monitored. Takeoff thrust is checked by adjusting the throttle to obtain a single, predicted reading on the engine pressure ratio indicator. The manufacturer's procedures and limitations must be followed during all engine operations. After engine shut down, inspect the engine for fuel and oil leaks and general condition."}, {"n": 12, "cat": "Knowledge", "sub": "B", "code": "AM.III.B.K7", "q": "What engine fault could cause a turbine engine to have high exhaust gas temperature, low RPM, and high fuel flow at all engine pressure ratio settings?", "a": "Possible turbine damage and/or loss of turbine efficiency due to excessive wear."}, {"n": 13, "cat": "Knowledge", "sub": "B", "code": "AM.III.B.K7", "q": "What would be the indications of an engine bleed-air valve malfunction?", "a": "Engine has higher-than-normal exhaust gas temperature during takeoff, climb, and cruise. RPM and fuel flow are higher than normal."}, {"n": 14, "cat": "Knowledge", "sub": "B", "code": "AM.III.B.K8", "q": "What is the primary purpose of bleeding air off the compressor section?", "a": "To unload the compressor at low speeds and to control the flow of air to the combustion burners."}, {"n": 15, "cat": "Knowledge", "sub": "B", "code": "AM.III.B.K8", "q": "What is the secondary purpose or use of bleed air?", "a": "Bleed air is used in a variety of aircraft systems including cabin pressurization, heating and cooling, deicing and anti-icing systems, pneumatic starting of engines and auxiliary drive units, and vortex dissipaters."}, {"n": 16, "cat": "Knowledge", "sub": "B", "code": "AM.III.B.K9", "q": "How is a turbine engine preserved for long periods of inactivity?", "a": "The methods will vary depending on the manufacturer and the length of inactivity. Common practices include draining the lubrication system and flushing with preservative oil. The engine fuel system may also be drained and filled with preservative oil, including the fuel control. Before the engine can be returned to service, the preservative oil must be completely flushed from the fuel system by motoring the engine and bleeding the fuel system. Always follow the manufacturer's instructions when performing any preservation or de-preservation of gas turbine engines."}, {"n": 17, "cat": "Knowledge", "sub": "B", "code": "AM.III.B.K10", "q": "Where are most APUs located in modern jet transport aircraft?", "a": "In the tail cone of the fuselage."}, {"n": 18, "cat": "Knowledge", "sub": "B", "code": "AM.III.B.K10", "q": "What is the function of an APU?", "a": "An APU provides electric power and compressed air when the main engines are not operating."}, {"n": 19, "cat": "Knowledge", "sub": "B", "code": "AM.III.B.K10", "q": "What are two sources of compressed air from an APU?", "a": "From bleed air from the APU turbine compressor, or from a load compressor driven by a free turbine in the engine."}, {"n": 20, "cat": "Knowledge", "sub": "B", "code": "AM.III.B.K10", "q": "Where in maintenance information based on the ATA-100 system would you find instructions for inspecting and servicing the engine of an airborne APU?", "a": "In section 49-20."}, {"n": 21, "cat": "Knowledge", "sub": "B", "code": "AM.III.B.K10", "q": "How is most of the troubleshooting done for a modern APU?", "a": "By the fault codes generated by the FADEC."}, {"n": 22, "cat": "Knowledge", "sub": "B", "code": "AM.III.B.K10", "q": "What ensures that an APU will not be shut down while it is too hot?", "a": "The APU fuel control incorporates an automatic time-delay feature that closes the bleed air valve to remove most of the load and reduce the APU temperature before it is shut down."}, {"n": 23, "cat": "Knowledge", "sub": "B", "code": "AM.III.B.K10", "q": "What prevents the APU exceeding its safe operating limits when the bleed air valve is wide open?", "a": "The FADEC monitors the load and regulates the fuel going to the APU to prevent it from exceeding its safe limits."}, {"n": 24, "cat": "Knowledge", "sub": "B", "code": "AM.III.B.K10", "q": "What document would you use to find the safety procedures to follow when replacing an igniter plug in an APU engine?", "a": "The maintenance manual for the APU."}, {"n": 25, "cat": "Knowledge", "sub": "B", "code": "AM.III.B.K11", "q": "What adjustments and rigging are accomplished on a turbine engine?", "a": "The primary rigging on a turbine engine involves the adjustment of power control levers and cables, followed by careful adjustment of the fuel control unit to trim the engine for the correct idle speeds and to obtain maximum thrust."}, {"n": 1, "cat": "Risk Management", "sub": "B", "code": "AM.III.B.R1", "q": "What are the risks associated with operating a turbine engine?", "a": "Improper engine operating procedures can be very expensive, and damage can happen quickly, with repair costs of hundreds of thousands of dollars or more. Turbine engines can also create enormous amounts of thrust, and the jet blast from engines can cause damage to surrounding aircraft and ground equipment. Ground personnel must also be monitored closely to maintain proper distances from operating engines. Follow aircraft maintenance manual instructions and local safety protocols when running engines. Ground personnel must use proper PPE, including ear protection."}, {"n": 2, "cat": "Risk Management", "sub": "B", "code": "AM.III.B.R2", "q": "What are the risks associated with performing maintenance on a turbine engine?", "a": "Improper engine maintenance can lead to expensive repairs and damage to other parts of the aircraft. Inspections and maintenance after engine runs must be done with care due to high temperatures of the engine and components. Use proper PPE and follow all maintenance manual instructions and procedures."}, {"n": 3, "cat": "Risk Management", "sub": "B", "code": "AM.III.B.R3", "q": "Describe the actions to be taken to minimize damage that might occur from an engine fire.", "a": "Move the fuel shutoff lever to the off position if an engine fire occurs, or if the fire warning light is illuminated during the starting cycle. Continue cranking or motoring the engine until the fire has been expelled from the engine. If the fire persists, CO2 can be discharged into the inlet duct while it is being cranked. Do not discharge CO2 directly into the engine exhaust, because it may damage the engine. If the fire cannot be extinguished, secure all switches, and leave the aircraft. If the fire is on the ground under the engine overboard drain, discharge the CO2 on the ground rather than on the engine. This also is true if the fire is at the tailpipe and the fuel is dripping to the ground and burning."}, {"n": 4, "cat": "Risk Management", "sub": "B", "code": "AM.III.B.R4", "q": "Describe ways to decrease risk of damage due to foreign object damage (FOD).", "a": "Inspect inlet screens on turboprop and turboshaft engines to ensure that they are not damaged. Care should be taken when working on an engine to not allow hardware, tools, or safety wire to remain in the inlet area of an engine. Before starting an engine, inspect the air inlet and the ground in front of and below the engine for objects and debris that could be injected into the engine."}];
+const SUBTITLES = {"B": "Turbine Engine Systems"};
+const SECTION = "Powerplant";
+const TAGS = {'Knowledge':'k','Risk Management':'r','Skills':'s'};
+const TAGLABEL = {'Knowledge':'Knowledge','Risk Management':'Risk','Skills':'Skill'};
+
+let subject='all', filter='all', starred=new Set(), useStarOnly=false, shuffled=false;
+let order=[], idx=0, flipped=false;
+const known=new Set(), review=new Set();
+const $=id=>document.getElementById(id);
+
+/* ---- Progress persistence (works in Safari / any real browser; silently off in restricted previews) ---- */
+const STORE_KEY='acsdeck.Powerplant.v1';
+let canStore=false;
+try{localStorage.setItem('__t','1');localStorage.removeItem('__t');canStore=true;}catch(e){canStore=false;}
+function saveState(){
+  if(!canStore)return;
+  try{localStorage.setItem(STORE_KEY,JSON.stringify({
+    subject,filter,shuffled,useStarOnly,idx,order,
+    known:[...known],review:[...review],starred:[...starred]
+  }));}catch(e){}
+}
+function loadState(){
+  if(!canStore)return false;
+  try{
+    const raw=localStorage.getItem(STORE_KEY);
+    if(!raw)return false;
+    const s=JSON.parse(raw);
+    subject=s.subject||'all'; filter=s.filter||'all';
+    shuffled=!!s.shuffled; useStarOnly=!!s.useStarOnly;
+    (s.starred||[]).forEach(x=>starred.add(x));
+    (s.known||[]).forEach(x=>known.add(x));
+    (s.review||[]).forEach(x=>review.add(x));
+    if(Array.isArray(s.order)&&s.order.length&&s.order.every(i=>i>=0&&i<CARDS.length)){
+      order=s.order; idx=Math.min(s.idx||0,order.length);
+      return true;
+    }
+    return false;
+  }catch(e){return false;}
+}
+/* ---- Cross-device sync via copy/paste code ---- */
+function packState(){
+  return btoa(unescape(encodeURIComponent(JSON.stringify({
+    d:SECTION,subject,filter,shuffled,useStarOnly,idx,order,
+    known:[...known],review:[...review],starred:[...starred]
+  }))));
+}
+function applyPacked(code){
+  const s=JSON.parse(decodeURIComponent(escape(atob(code.trim()))));
+  if(s.d!==SECTION) throw new Error('wrongdeck:'+s.d);
+  if(!Array.isArray(s.order)||!s.order.every(i=>i>=0&&i<CARDS.length)) throw new Error('bad');
+  subject=s.subject||'all'; filter=s.filter||'all';
+  shuffled=!!s.shuffled; useStarOnly=!!s.useStarOnly;
+  known.clear(); review.clear(); starred.clear();
+  (s.known||[]).forEach(x=>known.add(x));
+  (s.review||[]).forEach(x=>review.add(x));
+  (s.starred||[]).forEach(x=>starred.add(x));
+  order=s.order; idx=Math.min(s.idx||0,order.length); flipped=false;
+  document.querySelectorAll('.subj').forEach(b=>b.setAttribute('aria-pressed', b.dataset.subject===subject?'true':'false'));
+  document.querySelectorAll('.seg button').forEach(b=>b.setAttribute('aria-pressed', b.dataset.filter===filter?'true':'false'));
+  $('shuffle').setAttribute('aria-pressed',shuffled);
+  $('star').setAttribute('aria-pressed',useStarOnly);
+}
+async function exportProgress(){
+  const code=packState();
+  let copied=false;
+  try{ await navigator.clipboard.writeText(code); copied=true; }catch(e){}
+  if(copied){ alert('Sync code copied to clipboard.\n\nOn your other device, open this same deck, tap the ⇩ button, and paste it.'); }
+  else{ prompt('Copy this sync code, then paste it into the ⇩ button on your other device:', code); }
+}
+function importProgress(){
+  const code=prompt('Paste the sync code from your other device:');
+  if(!code) return;
+  try{
+    applyPacked(code);
+    render();
+    alert('Progress restored: '+known.size+' known, '+review.size+' to review.');
+  }catch(e){
+    if((''+e.message).startsWith('wrongdeck')) alert('That code is from the other deck ('+e.message.split(':')[1]+'). Open that deck and paste it there.');
+    else alert('That code could not be read. Make sure you copied the whole thing.');
+  }
+}
+
+// Build subject picker
+(function(){
+  const host=$('subjects');
+  const subs=[...new Set(CARDS.map(c=>c.sub))].sort();
+  const mk=(key,label,count,cls='')=>{
+    const b=document.createElement('button');
+    b.className='subj '+cls; b.dataset.subject=key;
+    b.setAttribute('aria-pressed', key==='all'?'true':'false');
+    b.innerHTML='<span class="l">'+label+'</span><span class="c">'+count+'</span>';
+    b.title = key==='all' ? 'All subjects' : (SUBTITLES[key]||'');
+    b.addEventListener('click',()=>{
+      document.querySelectorAll('.subj').forEach(x=>x.setAttribute('aria-pressed','false'));
+      b.setAttribute('aria-pressed','true'); subject=key;
+      known.clear(); review.clear(); buildOrder(); render();
+    });
+    host.appendChild(b);
+  };
+  mk('all','ALL',CARDS.length,'allbtn');
+  subs.forEach(s=>mk(s,s,CARDS.filter(c=>c.sub===s).length));
+})();
+
+function baseList(){
+  let list=CARDS.map((c,i)=>({...c,_i:i}));
+  if(subject!=='all') list=list.filter(c=>c.sub===subject);
+  if(filter!=='all') list=list.filter(c=>c.cat===filter);
+  if(useStarOnly) list=list.filter(c=>starred.has(c._i));
+  return list;
+}
+function buildOrder(){
+  let list=baseList();
+  order=list.map(c=>c._i);
+  if(shuffled){for(let k=order.length-1;k>0;k--){const j=Math.floor(Math.random()*(k+1));[order[k],order[j]]=[order[j],order[k]];}}
+  idx=0; flipped=false;
+}
+function curCard(){return CARDS[order[idx]];}
+
+function render(){
+  const done=$('done');
+  if(order.length===0){
+    done.classList.remove('show'); $('stage').style.display=''; $('judge').style.display='';
+    document.querySelector('.nav').style.display='';
+    $('q').textContent='No cards match these filters.'; $('a').textContent='';
+    $('code-f').innerHTML=''; $('tag-f').textContent=''; $('subj-f').textContent='';
+    updateMeta(); return;
+  }
+  if(idx>=order.length){showDone();return;}
+  done.classList.remove('show'); $('stage').style.display='';
+  $('judge').style.display=''; document.querySelector('.nav').style.display='';
+  const c=curCard();
+  const codeHtml=formatCode(c.code);
+  $('code-f').innerHTML=codeHtml; $('code-b').innerHTML=codeHtml;
+  const subjLabel = c.sub+' · '+(SUBTITLES[c.sub]||'');
+  $('subj-f').textContent=subjLabel; $('subj-b').textContent=subjLabel;
+  const t=TAGS[c.cat]; $('tag-f').className='tag '+t; $('tag-f').textContent=TAGLABEL[c.cat];
+  $('q').textContent=c.q;
+  const ql=c.q.length;
+  $('q').className='qtext'+(ql>340?' xs':ql>180?' sm':'');
+  $('qbody').className='body'+(ql>340?' long':'');
+  const isTask=!c.a||c.a.trim()==='';
+  if(isTask){
+    $('a').textContent='Practical task — demonstrate to the examiner. (No written answer; perform the procedure.)';
+    $('a').className='atext task'; $('abody').className='body'; $('bfoot').textContent='Skills / hands-on item';
+  }else{
+    const al=c.a.length;
+    $('a').textContent=c.a;
+    $('a').className='atext'+(al>900?' xs':al>430?' sm':'');
+    $('abody').className='body'+(al>430?' long':'');
+    $('bfoot').textContent='';
+  }
+  const card=$('card'); card.classList.toggle('flipped',flipped);
+  card.setAttribute('aria-label',(flipped?'Answer. ':'Question. ')+'Press space to flip.');
+  updateMeta();
+}
+function formatCode(code){
+  const m=code.match(/^(.*\.)([KRS].+)$/);
+  const starOn=starred.has(order[idx]);
+  const starMark=starOn?' <span style="color:var(--amber)">★</span>':'';
+  if(m) return esc(m[1])+'<b>'+esc(m[2])+'</b>'+starMark;
+  return esc(code)+starMark;
+}
+function esc(s){return (s+'').replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));}
+function updateMeta(){
+  const total=order.length, pos=Math.min(idx+1,total);
+  $('posmeta').textContent= total?`Card ${pos} of ${total}`:'No cards';
+  $('curn').textContent=pos; $('totn').textContent=total;
+  $('bar').style.width= total?(Math.min(idx,total)/total*100)+'%':'0%';
+  $('learnt').textContent=known.size+' known';
+  $('reviewt').textContent=review.size+' to review';
+  const scopeBits=[];
+  scopeBits.push(subject==='all'?'All subjects':('Subject '+subject));
+  if(filter!=='all') scopeBits.push(filter);
+  if(useStarOnly) scopeBits.push('starred');
+  if(shuffled) scopeBits.push('shuffled');
+  if(canStore) scopeBits.push('auto-saved');
+  $('scopemeta').textContent=scopeBits.join(' · ');
+  $('prev').disabled=idx<=0;
+  saveState();
+}
+function flip(){if(order.length===0)return;flipped=!flipped;$('card').classList.toggle('flipped',flipped);
+  $('card').setAttribute('aria-label',(flipped?'Answer. ':'Question. ')+'Press space to flip.');}
+function go(d){if(order.length===0)return;idx+=d;flipped=false;if(idx<0)idx=0;render();}
+function judge(g){if(order.length===0||idx>=order.length)return;const gi=order[idx];
+  if(g){known.add(gi);review.delete(gi);}else{review.add(gi);known.delete(gi);}
+  flipped=false;idx++;render();}
+function showDone(){
+  $('stage').style.display='none';$('judge').style.display='none';document.querySelector('.nav').style.display='none';
+  $('done').classList.add('show');
+  $('d-known').textContent=known.size;$('d-review').textContent=review.size;$('d-total').textContent=order.length;
+  $('bar').style.width='100%';$('posmeta').textContent=`Card ${order.length} of ${order.length}`;$('curn').textContent=order.length;
+  $('donesub').textContent=review.size?`You flagged ${review.size} card${review.size>1?'s':''} to review.`:'Clean run — nice work.';
+  saveState();
+}
+document.querySelectorAll('.seg button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.seg button').forEach(x=>x.setAttribute('aria-pressed','false'));
+  b.setAttribute('aria-pressed','true');filter=b.dataset.filter;
+  known.clear();review.clear();buildOrder();render();
+}));
+$('shuffle').addEventListener('click',()=>{shuffled=!shuffled;$('shuffle').setAttribute('aria-pressed',shuffled);buildOrder();render();});
+$('star').addEventListener('click',()=>{useStarOnly=!useStarOnly;$('star').setAttribute('aria-pressed',useStarOnly);buildOrder();render();});
+$('restart').addEventListener('click',restart);
+$('exportp').addEventListener('click',exportProgress);
+$('importp').addEventListener('click',importProgress);
+function restart(){known.clear();review.clear();buildOrder();render();}
+$('card').addEventListener('click',flip);
+$('card').addEventListener('keydown',e=>{if(e.code==='Space'||e.code==='Enter'){e.preventDefault();flip();}});
+$('prev').addEventListener('click',()=>go(-1));
+$('next').addEventListener('click',()=>go(1));
+$('again').addEventListener('click',()=>judge(false));
+$('got').addEventListener('click',()=>judge(true));
+$('redo-all').addEventListener('click',restart);
+$('redo-review').addEventListener('click',()=>{const ids=[...review];if(ids.length===0){restart();return;}
+  known.clear();order=ids;review.clear();idx=0;flipped=false;$('done').classList.remove('show');render();});
+function toggleStar(){if(order.length===0)return;const gi=order[idx];if(starred.has(gi))starred.delete(gi);else starred.add(gi);render();}
+window.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT')return;
+  switch(e.key){
+    case 'ArrowRight':e.preventDefault();flipped?judge(true):go(1);break;
+    case 'ArrowLeft':e.preventDefault();flipped?judge(false):go(-1);break;
+    case ' ':case 'Enter':if(e.target===$('card'))return;e.preventDefault();flip();break;
+    case 's':case 'S':$('shuffle').click();break;
+    case 'r':case 'R':restart();break;
+    case 'f':case 'F':toggleStar();break;
+    case 't':case 'T':$('star').click();break;
+  }
+});
+/* Init: resume saved progress if present, else fresh */
+if(loadState()){
+  document.querySelectorAll('.subj').forEach(b=>b.setAttribute('aria-pressed', b.dataset.subject===subject?'true':'false'));
+  document.querySelectorAll('.seg button').forEach(b=>b.setAttribute('aria-pressed', b.dataset.filter===filter?'true':'false'));
+  $('shuffle').setAttribute('aria-pressed',shuffled);
+  $('star').setAttribute('aria-pressed',useStarOnly);
+  render();
+}else{
+  buildOrder();render();
+}
+</script>
+</body>
+</html>
