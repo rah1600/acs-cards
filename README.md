@@ -5,4 +5,4 @@ Oral and Practical Flashcards
 
 [Airframe Flashcards](https://rah1600.github.io/acs-cards/airframe.html)
 
-[Powerplant - Flashcards](https://rah1600.github.io/acs-cards/powerplant.html)
+[Powerplant Flashcards](https://rah1600.github.io/acs-cards/powerplant.html)
