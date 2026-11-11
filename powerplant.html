@@ -259,6 +259,21 @@ button.cchip:hover{border-color:#4a5665}
 .codedesc .sugnote{display:block;font-family:var(--mono);font-size:10.5px;color:var(--ink-faint);margin-top:2px}
 [hidden]{display:none!important}
 body{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+.wrongseg button[aria-pressed=true]{background:var(--red-soft);color:var(--red);border-color:#5a2626}
+.wrongseg .badge{display:inline-block;min-width:16px;padding:1px 4px;margin-left:4px;border-radius:99px;background:rgba(0,0,0,.3);font-size:10px;text-align:center}
+.flowbar{border:1px solid #4a3a18;background:linear-gradient(180deg,#241d0c,#1a1509);border-radius:12px;padding:12px 14px;margin:0 0 14px;display:flex;flex-direction:column;gap:10px}
+.flowbar[hidden]{display:none}
+.flowbar .ftop{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.flowbar .ftitle{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--amber)}
+.flowbar .fsub{font-size:12.5px;color:var(--ink-dim);line-height:1.45;margin:0}
+.flowbar .fsub b{color:var(--ink)} .flowbar .fsub .w{color:var(--red)}
+.flowtrack{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+.flowdot{min-width:26px;height:26px;padding:0 6px;border-radius:7px;border:1px solid var(--edge);display:grid;place-items:center;font-family:var(--mono);font-size:11px;color:var(--ink-faint);background:#0c1015}
+.flowdot.done{background:var(--green-soft);border-color:#1d4732;color:var(--green)}
+.flowdot.now{background:var(--amber-soft);border-color:var(--amber);color:var(--amber);font-weight:700}
+.flowdot.skip{opacity:.35}
+.flowbar .fbtns{display:flex;gap:8px;flex-wrap:wrap}
+.flowbar .fbtns .btn{padding:8px 12px;font-size:12.5px}
 </style>
 </head>
 <body>
@@ -349,6 +364,28 @@ body{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset
     <button class="iconbtn" id="exportp" title="Copy sync code (to move progress to another device)">⇪</button>
     <button class="iconbtn" id="importp" title="Paste sync code (from your other device)">⇩</button>
   </div>
+<!-- NEW: section flow banner -->
+<div class="flowbar" id="flowbar" hidden>
+  <div class="ftop">
+    <span class="ftitle" id="flow-title">Section-by-section study</span>
+    <div class="flowtrack" id="flowtrack"></div>
+  </div>
+  <p class="fsub" id="flow-sub"></p>
+  <div class="fbtns">
+    <button type="button" class="btn primary" id="flow-advance" hidden>Next section ›</button>
+    <button type="button" class="btn" id="flow-skip" hidden>Skip this section</button>
+    <button type="button" class="btn" id="flow-review" hidden>Review missed cards</button>
+    <button type="button" class="btn" id="flow-exit">Exit section mode</button>
+  </div>
+</div>
+
+<!-- NEW: wrong-card review controls -->
+<div class="controls" style="margin-top:-6px">
+  <div class="seg wrongseg" role="group" aria-label="Wrong-card review and section study">
+    <button type="button" id="btn-sections" aria-pressed="false" title="Go through each section individually, then review everything you missed">Section-by-section</button>
+    <button type="button" id="btn-wrong-all" aria-pressed="false" title="Review every card you have marked Still learning across all sections">Review all wrong<span class="badge" id="wrong-count">0</span></button>
+  </div>
+</div>
 
   <div class="sync" id="syncpanel" hidden>
     <p id="synctext"></p>
@@ -933,6 +970,226 @@ if(loadState()){
 }else{
   buildOrder();syncUI();render();
 }
+/* ================= NEW: GLOBAL WRONG-CARD TRACKING + SECTION FLOW ================= */
+const wrongCards = new Set();   // indices marked "Still learning", across ALL sections
+let flowMode = false;           // in section-by-section study
+let flowSubjects = [];          // list of subject keys in order
+let flowIdx = 0;                // which subject we're on
+let flowDone = new Set();       // subject keys completed
+const flowStats = {};           // subj -> {missed:[], total:0, known:0}
+
+function updateWrongCount(){
+  const b=$('wrong-count');
+  if(b) b.textContent = wrongCards.size;
+  const btn=$('btn-wrong-all');
+  if(btn) btn.disabled = wrongCards.size===0;
+}
+
+/* -- Section flow -- */
+function startSectionFlow(){
+  flowMode = true; flowDone = new Set(); flowIdx = 0;
+  const subs = [...new Set(CARDS.map(c=>c.sub))].sort();
+  flowSubjects = subs;
+  // reset per-section stats
+  Object.keys(flowStats).forEach(k=>delete flowStats[k]);
+  flowSubjects.forEach(s=>{flowStats[s]={missed:[],total:0,known:0};});
+  $('flowbar').hidden = false;
+  $('btn-sections').setAttribute('aria-pressed','true');
+  // Default scope to all, clear known/review for a clean section run
+  subject='all'; filter='all'; source='all'; useStarOnly=false; codeOn=false;
+  known.clear(); review.clear();
+  loadFlowSection();
+}
+
+function loadFlowSection(){
+  const s = flowSubjects[flowIdx];
+  subject = s; filter='all'; source='all'; useStarOnly=false; codeOn=false; shuffled=false;
+  document.querySelectorAll('#subjects .subj').forEach(b=>b.setAttribute('aria-pressed', b.dataset.subject===s?'true':'false'));
+  $('shuffle').setAttribute('aria-pressed','false');
+  known.clear(); review.clear();
+  buildOrder();
+  flipped=false;
+  renderFlowBanner();
+  render();
+}
+
+function renderFlowBanner(){
+  const s = flowSubjects[flowIdx];
+  const name = SHORTNAMES[s] || SUBTITLES[s] || s;
+  const st = flowStats[s] || {missed:[],total:0,known:0};
+  $('flow-title').textContent = flowMode
+    ? `Section-by-section · ${flowIdx+1} of ${flowSubjects.length}`
+    : 'Section-by-section study';
+  // progress dots
+  $('flowtrack').innerHTML = flowSubjects.map((k,i)=>{
+    let cls='flowdot';
+    if(flowDone.has(k)) cls+=' done';
+    else if(i===flowIdx) cls+=' now';
+    const n=flowStats[k]?flowStats[k].total:0;
+    return `<span class="${cls}" title="${esc(SHORTNAMES[k]||k)}">${esc(k)}</span>`;
+  }).join('');
+  const missed = st.missed.length;
+  $('flow-sub').innerHTML = flowMode
+    ? `Now: <b>${esc(name)}</b> · ${st.total || order.length} cards in this section${missed?` · <span class="w">${missed} marked Still learning</span>`:''}`
+    : '';
+  const lastSection = flowIdx >= flowSubjects.length-1;
+  $('flow-advance').hidden = false;
+  $('flow-advance').textContent = lastSection ? 'Finish & review missed ›' : 'Next section ›';
+  $('flow-skip').hidden = false;
+  $('flow-review').hidden = false;
+  $('flow-review').textContent = `Review missed (${wrongCards.size})`;
+}
+
+function finishFlowSection(){
+  // record stats for the section just finished
+  const s = flowSubjects[flowIdx];
+  const st = flowStats[s] || (flowStats[s]={missed:[],total:0,known:0});
+  st.total = order.length;
+  st.known = known.size;
+  st.missed = order.filter(i=>wrongCards.has(i));
+  flowDone.add(s);
+  if(flowIdx >= flowSubjects.length-1){
+    // all sections done -> go straight to a review of everything missed in this run
+    reviewAllWrong(true);
+    return;
+  }
+  flowIdx++;
+  loadFlowSection();
+}
+
+function exitSectionFlow(){
+  flowMode=false;
+  $('flowbar').hidden = true;
+  $('btn-sections').setAttribute('aria-pressed','false');
+  // reset to the ALL view so the user is back to normal
+  subject='all';
+  document.querySelectorAll('#subjects .subj').forEach(b=>b.setAttribute('aria-pressed', b.dataset.subject==='all'?'true':'false'));
+  known.clear(); review.clear(); buildOrder(); render();
+}
+
+/* -- Review all wrong (global) -- */
+function reviewAllWrong(fromFlow=false){
+  if(wrongCards.size===0){
+    // nothing wrong anywhere: fall back to a friendly message
+    alert("No wrong cards yet. Mark some cards 'Still learning' first.");
+    return;
+  }
+  // Build a special order from all wrong cards, cleared of known
+  const ids = [...wrongCards].filter(i=>!known.has(i));
+  if(ids.length===0){ // all wrong ones got fixed
+    alert("Nothing left to review — all your previously missed cards are now marked known!");
+    return;
+  }
+  if(!fromFlow){ flowMode=false; $('flowbar').hidden=true; $('btn-sections').setAttribute('aria-pressed','false'); }
+  // Scope: show these cards regardless of subject/filter
+  subject='all'; filter='all'; source='all'; useStarOnly=false; codeOn=false;
+  document.querySelectorAll('#subjects .subj').forEach(b=>b.setAttribute('aria-pressed', b.dataset.subject==='all'?'true':'false'));
+  known.clear(); review.clear();
+  // set order directly to the wrong indices (dedup, sorted for stable order)
+  order = ids.slice().sort((a,b)=>a-b);
+  idx = 0; flipped=false;
+  $('btn-wrong-all').setAttribute('aria-pressed','true');
+  render();
+}
+
+/* -- Hook into judge() so wrong cards are tracked globally -- */
+const _origJudge = judge;
+judge = function(g){
+  if(order.length===0 || idx>=order.length) return;
+  const gi = order[idx];
+  if(g){
+    known.add(gi); review.delete(gi);
+    // if they got it right now, it's no longer "wrong"
+    if(wrongCards.has(gi)) wrongCards.delete(gi);
+  }else{
+    review.add(gi); known.delete(gi);
+    // record it as a global wrong card (persists across sections)
+    wrongCards.add(gi);
+  }
+  updateWrongCount();
+  flipped=false; idx++; render();
+};
+
+/* -- Buttons -- */
+$('btn-sections').addEventListener('click',()=>{
+  if(flowMode){ exitSectionFlow(); return; }
+  startSectionFlow();
+});
+$('btn-wrong-all').addEventListener('click',()=>{
+  $('btn-wrong-all').setAttribute('aria-pressed','true');
+  $('btn-sections').setAttribute('aria-pressed','false');
+  reviewAllWrong(false);
+});
+$('flow-advance').addEventListener('click',()=>{ finishFlowSection(); });
+$('flow-skip').addEventListener('click',()=>{ 
+  // mark current section done without recording, move on
+  const s = flowSubjects[flowIdx]; flowDone.add(s);
+  if(flowIdx >= flowSubjects.length-1){ reviewAllWrong(true); return; }
+  flowIdx++; loadFlowSection();
+});
+$('flow-review').addEventListener('click',()=>{ reviewAllWrong(true); });
+$('flow-exit').addEventListener('click',()=>{ exitSectionFlow(); });
+
+/* -- Persist wrong cards + flow in save/load/sync -- */
+const _origSave = saveState;
+saveState = function(){
+  if(!canStore) return;
+  try{
+    localStorage.setItem(STORE_KEY, JSON.stringify({
+      subject,filter,source,shuffled,useStarOnly,idx,order,
+      known:[...known],review:[...review],starred:[...starred],
+      codes:[...codes],codeOn,sortMode,
+      wrong:[...wrongCards]   // NEW
+    }));
+  }catch(e){}
+};
+const _origLoad = loadState;
+loadState = function(){
+  if(!canStore) return false;
+  try{
+    const raw = localStorage.getItem(STORE_KEY);
+    if(!raw) return false;
+    const s = JSON.parse(raw);
+    (s.wrong||[]).forEach(x=>{ if(x>=0 && x<CARDS.length) wrongCards.add(x); });
+    // let the original loader do its thing
+    const ok = _origLoad();
+    updateWrongCount();
+    return ok;
+  }catch(e){ return false; }
+};
+
+/* -- Also update sync pack/apply to carry wrong cards -- */
+const _origPack = packState;
+packState = function(){
+  return btoa(unescape(encodeURIComponent(JSON.stringify({
+    d:SECTION,subject,filter,source,shuffled,useStarOnly,idx,order,
+    known:[...known],review:[...review],starred:[...starred],
+    codes:[...codes],codeOn,sortMode,
+    wrong:[...wrongCards]   // NEW
+  }))));
+};
+const _origApply = applyPacked;
+applyPacked = function(code){
+  const s = JSON.parse(decodeURIComponent(escape(atob(code.trim()))));
+  if(s.d!==SECTION) throw new Error('wrongdeck:'+s.d);
+  if(!Array.isArray(s.order)||!s.order.every(i=>i>=0&&i<CARDS.length)) throw new Error('bad');
+  wrongCards.clear();
+  (s.wrong||[]).forEach(x=>{ if(x>=0 && x<CARDS.length) wrongCards.add(x); });
+  _origApply(code);   // delegate the rest
+  updateWrongCount();
+};
+
+/* -- Init wrong count on load -- */
+updateWrongCount();
+/* -- Make the ↺ restart button also clear the wrong-card pile -- */
+const _origRestart = restart;
+restart = function(){
+  wrongCards.clear();
+  updateWrongCount();
+  _origRestart();
+};
+$('restart').addEventListener('click', restart);   // rebind the button to the new wrapper
+/* ================= END NEW ================= */
 </script>
 </body>
 </html>
