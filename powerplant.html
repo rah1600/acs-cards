@@ -274,6 +274,18 @@ body{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset
 .flowdot.skip{opacity:.35}
 .flowbar .fbtns{display:flex;gap:8px;flex-wrap:wrap}
 .flowbar .fbtns .btn{padding:8px 12px;font-size:12.5px}
+  /* NEW: question search */
+.searchrow{margin:0 0 14px}
+.searchrow .box{position:relative}
+.searchrow input{width:100%;background:var(--panel);color:var(--ink);border:1px solid var(--edge);border-radius:10px;
+  padding:11px 40px 11px 36px;font:inherit;font-size:14px}
+.searchrow input:focus{outline:none;border-color:var(--amber)}
+.searchrow .box:before{content:"";position:absolute;left:13px;top:50%;width:11px;height:11px;margin-top:-8px;border:2px solid var(--ink-faint);border-radius:50%;pointer-events:none}
+.searchrow .box:after{content:"";position:absolute;left:24px;top:50%;width:6px;height:2px;margin-top:4px;background:var(--ink-faint);transform:rotate(45deg);pointer-events:none}
+.searchrow .clr{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:0;color:var(--ink-faint);font-size:16px;cursor:pointer;padding:6px 8px;border-radius:6px}
+.searchrow .clr:hover{color:var(--ink)}
+.searchrow .hint{font-family:var(--mono);font-size:10.5px;color:var(--ink-faint);letter-spacing:.06em;margin-top:6px}
+.searchrow .hint b{color:var(--amber);font-weight:600}
 </style>
 </head>
 <body>
@@ -302,6 +314,13 @@ body{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset
   <div class="pickrow">
     <p class="picklabel">ACS codes</p>
     <div class="codebar" id="codebar"></div>
+  </div>
+    <div class="searchrow">
+    <div class="box">
+      <input type="search" id="qsearch" placeholder="Search questions and answers…" aria-label="Search cards by question, answer, or ACS code" autocomplete="off">
+      <button type="button" class="clr" id="qsearch-clear" aria-label="Clear search" hidden>✕</button>
+    </div>
+    <p class="hint" id="qsearch-hint">Type a word from the <b>question</b> or <b>answer</b>, or an ACS code like <b>K4</b>.</p>
   </div>
 
   <div class="sheet-wrap" id="codesheet" hidden>
@@ -1189,6 +1208,72 @@ restart = function(){
   _origRestart();
 };
 $('restart').addEventListener('click', restart);   // rebind the button to the new wrapper
+  /* ================= NEW: QUESTION SEARCH ================= */
+let query = '';   // current search text, lowercased
+
+function cardMatchesQuery(c){
+  if(!query) return true;
+  const hay = (
+    c.q + ' ' +
+    (c.a || '') + ' ' +
+    (c.jq || '') + ' ' +
+    (c.ja || '') + ' ' +
+    c.code + ' ' + c.code.split('.').slice(2).join('.')   // also match "A.K4" and "K4"
+  ).toLowerCase();
+  return query.split(/\s+/).every(t => hay.includes(t));
+}
+
+/* Wrap baseList so every rebuild (filters, subject, codes, wrong-review, section flow) respects the search */
+const _origBaseList = baseList;
+baseList = function(){
+  return _origBaseList().filter(cardMatchesQuery);
+};
+
+/* Wrap buildOrder so it re-reads the query each time and updates the hint */
+const _origBuildOrder = buildOrder;
+buildOrder = function(){
+  _origBuildOrder();
+  updateSearchHint();
+};
+
+function updateSearchHint(){
+  const hint = $('qsearch-hint');
+  if(!hint) return;
+  if(!query){ hint.innerHTML = 'Type a word from the <b>question</b> or <b>answer</b>, or an ACS code like <b>K4</b>.'; return; }
+  const n = baseList().length;
+  hint.innerHTML = n
+    ? '<b>'+n+'</b> card'+(n===1?'':'s')+' match &ldquo;'+esc(query)+'&rdquo;'
+    : 'No cards match &ldquo;'+esc(query)+'&rdquo;. Try one word.';
+}
+
+function setQuery(v){
+  query = (v||'').trim().toLowerCase();
+  $('qsearch').value = v||'';
+  $('qsearch-clear').hidden = !query;
+  known.clear(); review.clear();         // new scope -> reset this run's counters
+  buildOrder();
+  render();
+}
+
+$('qsearch').addEventListener('input', e => setQuery(e.target.value));
+$('qsearch-clear').addEventListener('click', () => { setQuery(''); $('qsearch').focus(); });
+
+/* Persist the query alongside the rest of the state */
+const _origPack = packState;
+packState = function(){
+  // include query in the sync payload
+  const s = JSON.parse(decodeURIComponent(escape(atob(_origPack().trim()))));
+  s.q = query;
+  return btoa(unescape(encodeURIComponent(JSON.stringify(s))));
+};
+const _origApply = applyPacked;
+applyPacked = function(code){
+  const s = JSON.parse(decodeURIComponent(escape(atob(code.trim()))));
+  const q = s.q || '';
+  _origApply(code);                       // restores everything else
+  setQuery(q);                            // then reapply the search
+};
+/* ================= END QUESTION SEARCH ================= */
 /* ================= END NEW ================= */
 </script>
 </body>
