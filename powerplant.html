@@ -1258,20 +1258,20 @@ function setQuery(v){
 $('qsearch').addEventListener('input', e => setQuery(e.target.value));
 $('qsearch-clear').addEventListener('click', () => { setQuery(''); $('qsearch').focus(); });
 
-/* Persist the query alongside the rest of the state */
-const _origPack = packState;
+/* Persist the query alongside the rest of the state.
+   Uses NEW names so it doesn't redeclare _origPack/_origApply. */
+const _qPack = packState;
 packState = function(){
-  // include query in the sync payload
-  const s = JSON.parse(decodeURIComponent(escape(atob(_origPack().trim()))));
+  const s = JSON.parse(decodeURIComponent(escape(atob(_qPack().trim()))));
   s.q = query;
   return btoa(unescape(encodeURIComponent(JSON.stringify(s))));
 };
-const _origApply = applyPacked;
+const _qApply = applyPacked;
 applyPacked = function(code){
   const s = JSON.parse(decodeURIComponent(escape(atob(code.trim()))));
   const q = s.q || '';
-  _origApply(code);                       // restores everything else
-  setQuery(q);                            // then reapply the search
+  _qApply(code);      // restores everything else
+  setQuery(q);        // then reapply the search
 };
 /* ================= END QUESTION SEARCH ================= */
 /* ================= END NEW ================= */
